@@ -82,17 +82,29 @@ int main() {
 
         if (action == 'H') {
             showGuide();
+
+            // pet.cpp
         } else if (action == 'S') {
             printStatus(pet);
+
+            // feed.cpp
         } else if (action == 'F') {
             feed(pet);
+
+            // play.cpp
         } else if (action == 'P') {
             play(pet);
+
+            // sleep.cpp
         } else if (action == 'Z') {
             sleepPet(pet);
+
+            // shower.cpp
             lastUpdate = Clock::now();
         } else if (action == 'W') {
             shower(pet);
+
+            
         } else if (action == 'Q') {
             running = false;
         } else {
