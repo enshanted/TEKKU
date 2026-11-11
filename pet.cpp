@@ -7,13 +7,13 @@
 using namespace std;
 
 // how much each stat goes down EVERY SECOND
-const float NOURISHMENT_LOSS = 0.24;   // 100 gone in 7 minutes
-const float FUN_LOSS         = 0.24;   // 
-const float ENERGY_LOSS      = 0.16;   // 100 gone in 10 mins
-const float CLEANLINESS_LOSS = 0.16;   // 
+float NOURISHMENT_LOSS = 0.24;   // 100 gone in 7 minutes
+float FUN_LOSS         = 0.24;   // 
+float ENERGY_LOSS      = 0.16;   // 100 gone in 10 mins
+float CLEANLINESS_LOSS = 0.16;   // 
 
-// The pet complains every 60 seconds while a stat is 0%
-const int WARNING_TIME = 60;
+// The pet complains every 60 seconds while a stat is 0
+int WARNING_TIME = 60;
 
 // The last time (in seconds) the stats were lowered
 time_t lastTime;
