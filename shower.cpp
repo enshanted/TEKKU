@@ -1,6 +1,4 @@
-//
-// Created by Alaina Mae Roguel on 11/11/26.
-//
+
 #include "Pet.h"
 #include <iostream>
 using namespace std;
