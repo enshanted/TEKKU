@@ -5,10 +5,10 @@
 using namespace std;
 // pet structure
 struct Pet {
-    string species;   
+    string species;
     string name;
 
-    float nourishment;    
+    float nourishment;
     float fun;
     float energy;
     float cleanliness;
@@ -18,5 +18,11 @@ struct Pet {
 void initializePet(Pet& pet, std::string species, std::string name);
 void updatePet(Pet& pet, float unused);
 void printStatus(Pet pet);
+
+// (revised) declaring functions
+void feed(Pet& pet);
+void play(Pet& pet);
+void sleepPet(Pet& pet);
+void shower(Pet& pet);
 
 #endif
