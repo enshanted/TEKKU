@@ -26,7 +26,7 @@ int tiredTimer  = WARNING_TIME;
 int dirtyTimer  = WARNING_TIME;
 
 
-// Make a new pet with all stats at 100%
+// newpet all stats at 100%
 void initializePet(Pet& pet, string species, string name) {
     pet.species = species;
     pet.name = name;
@@ -40,11 +40,10 @@ void initializePet(Pet& pet, string species, string name) {
 }
 
 
-// Lower the stats for every second that passed
-// (the second number from main.cpp is not needed anymore, this file counts the time itself)
+// lower the stats for every second that passed
 void updatePet(Pet& pet, float unused) {
 
-    // How many seconds passed since the last update?
+    // how many seconds passed since the start
     time_t now = time(0);
     int seconds = now - lastTime;
 
@@ -53,7 +52,7 @@ void updatePet(Pet& pet, float unused) {
     }
     lastTime = now;
 
-    // Lower each stat: amount per second x number of seconds
+    // lower each stat. amount per second x number of seconds
     pet.nourishment = pet.nourishment - NOURISHMENT_LOSS * seconds;
     pet.fun         = pet.fun - FUN_LOSS * seconds;
     pet.energy      = pet.energy - ENERGY_LOSS * seconds;
