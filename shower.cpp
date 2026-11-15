@@ -1,17 +1,19 @@
-
 #include "Pet.h"
+
 #include <iostream>
-using namespace std;
 
 void shower(Pet& pet) {
-    if (pet.cleanliness >= 100) { // para di global variable
-        cout << "Your pet is already clean!" << endl;
+    if (pet.sleeping) {
+        std::cout << pet.name << " is sleeping. Wake them before showering.\n";
         return;
     }
 
-    // One shower fully restores cleanlines. PS should this be timed based din?
-    pet.cleanliness = 100;
-    cout << "Your pet took a shower. Cleanliness: 100%" << endl;
-}
+    if (pet.cleanliness >= 100.0f) {
+        std::cout << pet.name << " is already clean!\n";
+        return;
+    }
 
-//UPDATE: removed cleanliness declaration, changed cleanliness to pet.cleanliness
+    pet.cleanliness = 100.0f;
+    std::cout << pet.name << " took a shower and is clean!\n";
+    printStatus(pet);
+}
