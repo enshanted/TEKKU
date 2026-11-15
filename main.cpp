@@ -8,56 +8,79 @@
 using namespace std;
 
 void showGuide() {
-
-// This is tentative (sa SFML iciclick lang ng user sa screen not type the corresponding letters)
-    cout << "\nKEY GUIDE: \n"
+    cout << "\n--- TEKKU KEY GUIDE ---\n"
          << "H - Show this guide\n"
          << "S - Check pet status\n"
          << "F - Feed\n"
          << "P - Play/tickle\n"
-         << "Z - Sleep\n"
+         << "Z - Sleep or wake\n"
          << "W - Shower\n"
-         << "Q - Quit\n";
+         << "Q - Save and quit\n";
 }
 
 int main() {
-    string answer;
-
-    // Hatch a pet
-    cout << "Would you like to hatch a pet? (y/n): ";
-    cin >> answer;
-
-    if (answer != "y" && answer != "Y") {
-        cout << "The egg was not hatched. Goodbye!\n";
-        return 0;
-    }
-
-    // Choose a pet
-    int petChoice;
-    cout << "\nChoose your pet:\n"
-         << "1 - Cat\n"
-         << "2 - Dog\n"
-         << "Choice: ";
-    cin >> petChoice;
-
-    string species;
-
-    if (petChoice == 1) {
-        species = "Cat";
-    } else if (petChoice == 2) {
-        species = "Dog";
-    } else {
-        cout << "Invalid choice. Choosing Cat.\n";
-        species = "Cat";
-    }
-
-    // Name the pet
-    string name;
-    cout << "Name your " << species << ": ";
-    getline(cin >> ws, name);
-
     Pet pet;
-    initializePet(pet, species, name);
+    bool loadedGame = false;
+
+    cout << "Welcome to Tekku!\n";
+    cout << "Load a saved game? (y/n): ";
+
+    char loadChoice;
+    cin >> loadChoice;
+    loadChoice = static_cast<char>(
+        tolower(static_cast<unsigned char>(loadChoice))
+    );
+
+    if (loadChoice == 'y') {
+        loadedGame = loadGame(pet);
+
+        if (loadedGame) {
+            cout << "Saved game loaded.\n";
+            printStatus(pet);
+        } else {
+            cout << "No saved game was found. Starting a new game.\n";
+        }
+    }
+
+    if (!loadedGame) {
+        cout << "Would you like to hatch a pet? (y/n): ";
+
+        char hatchChoice;
+        cin >> hatchChoice;
+        hatchChoice = static_cast<char>(
+            tolower(static_cast<unsigned char>(hatchChoice))
+        );
+
+        if (hatchChoice != 'y') {
+            cout << "The egg was not hatched. Goodbye!\n";
+            return 0;
+        }
+
+        cout << "\nChoose your pet:\n"
+             << "1 - Cat\n"
+             << "2 - Dog\n"
+             << "Choice: ";
+
+        int petChoice;
+        cin >> petChoice;
+
+        string species;
+        if (petChoice == 2) {
+            species = "Dog";
+        } else {
+            species = "Cat";
+            if (petChoice != 1) {
+                cout << "Invalid choice. Choosing Cat.\n";
+            }
+        }
+
+        string name;
+        cout << "Name your " << species << ": ";
+        getline(cin >> ws, name);
+
+        initializePet(pet, species, name);
+        saveGame(pet);
+    }
 
     showGuide();
 
@@ -67,6 +90,7 @@ int main() {
 
     while (running) {
         cout << "\nChoose an action: ";
+
         char action;
         cin >> action;
         action = static_cast<char>(
@@ -78,40 +102,37 @@ int main() {
             chrono::duration<float>(now - lastUpdate).count();
 
         updatePet(pet, elapsedSeconds);
+        updateSleep(pet, elapsedSeconds);
         lastUpdate = now;
 
         if (action == 'H') {
             showGuide();
-
-            // pet.cpp
         } else if (action == 'S') {
             printStatus(pet);
-
-            // feed.cpp
         } else if (action == 'F') {
             feed(pet);
-
-            // play.cpp
         } else if (action == 'P') {
             play(pet);
-
-            // sleep.cpp
         } else if (action == 'Z') {
-            sleepPet(pet);
-
-            // shower.cpp
-            lastUpdate = Clock::now();
+            toggleSleep(pet);
         } else if (action == 'W') {
             shower(pet);
-
-            
         } else if (action == 'Q') {
+            if (saveGame(pet)) {
+                cout << "Game saved. Goodbye!\n";
+            } else {
+                cout << "Could not save the game.\n";
+            }
             running = false;
+            continue;
         } else {
             cout << "Unknown key. Press H to see the guide.\n";
         }
+
+        if (!saveGame(pet)) {
+            cout << "Could not save the game.\n";
+        }
     }
 
-    cout << "Goodbye!\n";
     return 0;
 }
