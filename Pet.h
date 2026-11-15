@@ -2,27 +2,39 @@
 #define PET_H
 
 #include <string>
-using namespace std;
-// pet structure
-struct Pet {
-    string species;
-    string name;
 
-    float nourishment;
-    float fun;
-    float energy;
-    float cleanliness;
+struct Pet {
+    std::string species;
+    std::string name;
+
+    float nourishment = 100.0f;
+    float fun = 100.0f;
+    float energy = 100.0f;
+    float cleanliness = 100.0f;
+
+    bool sleeping = false;
+
+    // Time each stat has spent at 0%, for its warning message.
+    float hungerWarningElapsed = 0.0f;
+    float funWarningElapsed = 0.0f;
+    float energyWarningElapsed = 0.0f;
+    float cleanlinessWarningElapsed = 0.0f;
 };
 
-// Functions written in pet.cpp
-void initializePet(Pet& pet, std::string species, std::string name);
-void updatePet(Pet& pet, float unused);
-void printStatus(Pet pet);
+void initializePet(Pet& pet, const std::string& species,
+                   const std::string& name);
+void updatePet(Pet& pet, float elapsedSeconds);
+void printStatus(const Pet& pet);
 
-// (revised) declaring functions
+bool saveGame(const Pet& pet,
+              const std::string& filename = "tekku_save.txt");
+bool loadGame(Pet& pet,
+              const std::string& filename = "tekku_save.txt");
+
 void feed(Pet& pet);
 void play(Pet& pet);
-void sleepPet(Pet& pet);
+void toggleSleep(Pet& pet);
+void updateSleep(Pet& pet, float elapsedSeconds);
 void shower(Pet& pet);
 
 #endif
