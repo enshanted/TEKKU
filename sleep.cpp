@@ -1,35 +1,36 @@
-#include <algorithm>
-#include <chrono>
-#include <iostream>
-#include <thread>
 #include "Pet.h"
 
-using namespace std;
+#include <algorithm>
+#include <iostream>
 
-//int sleepLevel = 0; should use pet.energy
-
-void sleepPet(Pet& pet) {
-    pet.energy = clamp(pet.energy, 0.0f, 100.0f); // changed numbers compatible to float
-    if (pet.energy == 100.0f) {
-        cout << "Your pet is fully rested!" << endl;
+void toggleSleep(Pet& pet) {
+    if (pet.sleeping) {
+        pet.sleeping = false;
+        std::cout << pet.name << " woke up.\n";
         return;
     }
 
-    // Restore 20 points on sleep every 5 seconds interval until full
-    while (pet.energy < 100.0f) {
-        this_thread::sleep_for(chrono::seconds(5));
-        const float gained = min(20.0f, 100.0f - pet.energy); // changed int to float
-        pet.energy += gained;
-        cout << "+" << gained << " sleep. Your pet is resting. ("
-             << pet.energy << "%)" << endl;
+    if (pet.energy >= 100.0f) {
+        std::cout << pet.name << " is already fully rested.\n";
+        return;
     }
 
-    cout << "Your pet is fully rested!" << endl;
+    pet.sleeping = true;
+    std::cout << pet.name << " is now sleeping.\n";
 }
 
-/*
- UPDATES:
- - removed variable sleepLevel
- - changed sleepLevel to pet.energy
- - changed int to float, adjusted number formats to float
- */
+void updateSleep(Pet& pet, float elapsedSeconds) {
+    if (!pet.sleeping || elapsedSeconds <= 0.0f) {
+        return;
+    }
+
+    // Recover 1 energy point per second.
+    pet.energy = std::clamp(
+        pet.energy + elapsedSeconds, 0.0f, 100.0f
+    );
+
+    if (pet.energy >= 100.0f) {
+        pet.sleeping = false;
+        std::cout << pet.name << " is fully rested!\n";
+    }
+}
