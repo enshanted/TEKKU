@@ -1,120 +1,144 @@
 #include "Pet.h"
 
+#include <algorithm>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
-#include <string>
-#include <ctime>      
 
-using namespace std;
+namespace {
+    constexpr float WARNING_INTERVAL = 60.0f;
+    constexpr float DECAY_7_MINUTES = 100.0f / 420.0f;
+    constexpr float DECAY_10_MINUTES = 100.0f / 600.0f;
 
-// how much each stat goes down EVERY SECOND
-float NOURISHMENT_LOSS = 0.24; // 100 gone in 7 minutes
-float FUN_LOSS         = 0.24; 
-float ENERGY_LOSS      = 0.16; // 100 gone in 10 mins
-float CLEANLINESS_LOSS = 0.16;  
+    void decreaseStat(float& stat, float lossPerSecond, float elapsedSeconds,
+                      float& warningElapsed, const std::string& petName,
+                      const std::string& warning) {
+        if (elapsedSeconds <= 0.0f) {
+            return;
+        }
 
-// The pet complains every 60 seconds while a stat is 0
-int WARNING_TIME = 60;
+        float startingValue = stat;
+        stat = std::clamp(
+            stat - lossPerSecond * elapsedSeconds,
+            0.0f,
+            100.0f
+        );
 
-// The last time (in seconds) the stats were lowered
-time_t lastTime;
+        if (stat <= 0.0f) {
+            float timeAtZero = elapsedSeconds;
 
-// Seconds since the last complaint for each stat
-// (starts at 60 so the first complaint shows as soon as the stat reaches 0)
-int hungerTimer = WARNING_TIME;
-int boredTimer  = WARNING_TIME;
-int tiredTimer  = WARNING_TIME;
-int dirtyTimer  = WARNING_TIME;
+            // Count only the part of this update spent at 0%.
+            if (startingValue > 0.0f) {
+                timeAtZero = std::max(
+                    0.0f,
+                    elapsedSeconds - startingValue / lossPerSecond
+                );
+            }
 
+            warningElapsed += timeAtZero;
 
-// newpet all stats at 100%
-void initializePet(Pet& pet, string species, string name) {
+            while (warningElapsed >= WARNING_INTERVAL) {
+                std::cout << petName << ": " << warning << '\n';
+                warningElapsed -= WARNING_INTERVAL;
+            }
+        } else {
+            warningElapsed = 0.0f;
+        }
+    }
+}
+
+void initializePet(Pet& pet, const std::string& species,
+                   const std::string& name) {
     pet.species = species;
     pet.name = name;
 
-    pet.nourishment = 100;
-    pet.fun = 100;
-    pet.energy = 100;
-    pet.cleanliness = 100;
+    pet.nourishment = 100.0f;
+    pet.fun = 100.0f;
+    pet.energy = 100.0f;
+    pet.cleanliness = 100.0f;
+    pet.sleeping = false;
 
-    lastTime = time(0);   // start counting from now
+    pet.hungerWarningElapsed = 0.0f;
+    pet.funWarningElapsed = 0.0f;
+    pet.energyWarningElapsed = 0.0f;
+    pet.cleanlinessWarningElapsed = 0.0f;
 }
 
+void updatePet(Pet& pet, float elapsedSeconds) {
+    decreaseStat(
+        pet.nourishment, DECAY_7_MINUTES, elapsedSeconds,
+        pet.hungerWarningElapsed, pet.name, "I am hungry!"
+    );
 
-// lower the stats for every second that passed
-void updatePet(Pet& pet, float unused) {
+    decreaseStat(
+        pet.fun, DECAY_7_MINUTES, elapsedSeconds,
+        pet.funWarningElapsed, pet.name, "I am bored!"
+    );
 
-    // how many seconds passed since the start
-    time_t now = time(0);
-    int seconds = now - lastTime;
-
-    if (seconds <= 0) {
-        return;   // less than 1 second passed, nothing to do
-    }
-    lastTime = now;
-
-    // lower each stat. amount per second x number of seconds
-    pet.nourishment = pet.nourishment - NOURISHMENT_LOSS * seconds;
-    pet.fun         = pet.fun - FUN_LOSS * seconds;
-    pet.energy      = pet.energy - ENERGY_LOSS * seconds;
-    pet.cleanliness = pet.cleanliness - CLEANLINESS_LOSS * seconds;
-
-    // stat cant go below 0
-    if (pet.nourishment< 0) pet.nourishment = 0;
-    if (pet.fun< 0)         pet.fun = 0;
-    if (pet.energy< 0)      pet.energy = 0;
-    if (pet.cleanliness< 0) pet.cleanliness = 0;
-
-    //nourishment
-    if (pet.nourishment == 0) {
-        hungerTimer = hungerTimer + seconds;
-        if (hungerTimer >= WARNING_TIME) {
-            cout << "\n" << pet.name << ": I am hungry!\n";
-            hungerTimer = 0;
-        }
-    } else {
-        hungerTimer = WARNING_TIME;
+    // Energy recovers while sleeping, so it does not passively decrease then.
+    if (!pet.sleeping) {
+        decreaseStat(
+            pet.energy, DECAY_10_MINUTES, elapsedSeconds,
+            pet.energyWarningElapsed, pet.name, "I am tired!"
+        );
     }
 
-    // Fun
-    if (pet.fun == 0) {
-        boredTimer = boredTimer + seconds;
-        if (boredTimer >= WARNING_TIME) {
-            cout << "\n" << pet.name << ": I am bored!\n";
-            boredTimer = 0;
-        }
-    } else {
-        boredTimer = WARNING_TIME;
-    }
-
-    // Energy
-    if (pet.energy == 0) {
-        tiredTimer = tiredTimer + seconds;
-        if (tiredTimer >= WARNING_TIME) {
-            cout << "\n" << pet.name << ": I am tired!\n";
-            tiredTimer = 0;
-        }
-    } else {
-        tiredTimer = WARNING_TIME;
-    }
-
-    // Cleanliness
-    if (pet.cleanliness == 0) {
-        dirtyTimer = dirtyTimer + seconds;
-        if (dirtyTimer >= WARNING_TIME) {
-            cout << "\n" << pet.name << ": I am dirty!\n";
-            dirtyTimer = 0;
-        }
-    } else {
-        dirtyTimer = WARNING_TIME;
-    }
+    decreaseStat(
+        pet.cleanliness, DECAY_10_MINUTES, elapsedSeconds,
+        pet.cleanlinessWarningElapsed, pet.name, "I am dirty!"
+    );
 }
 
+void printStatus(const Pet& pet) {
+    std::cout << "\n" << pet.name << " the " << pet.species << "'s status:\n"
+              << "Nourishment: " << pet.nourishment << "%\n"
+              << "Fun:         " << pet.fun << "%\n"
+              << "Energy:      " << pet.energy << "%\n"
+              << "Cleanliness: " << pet.cleanliness << "%\n";
+}
 
-// for stats printout
-void printStatus(Pet pet) {
-    cout << pet.name << " the " << pet.species << "\n";
-    cout << "Nourishment: " << pet.nourishment << "%\n";
-    cout << "Fun:         " << pet.fun << "%\n";
-    cout << "Energy:      " << pet.energy << "%\n";
-    cout << "Cleanliness: " << pet.cleanliness << "%\n";
+bool saveGame(const Pet& pet, const std::string& filename) {
+    std::ofstream file(filename);
+
+    if (!file) {
+        return false;
+    }
+
+    file << std::quoted(pet.species) << '\n'
+         << std::quoted(pet.name) << '\n'
+         << std::setprecision(7)
+         << pet.nourishment << '\n'
+         << pet.fun << '\n'
+         << pet.energy << '\n'
+         << pet.cleanliness << '\n'
+         << pet.sleeping << '\n';
+
+    return static_cast<bool>(file);
+}
+
+bool loadGame(Pet& pet, const std::string& filename) {
+    std::ifstream file(filename);
+
+    if (!file) {
+        return false;
+    }
+
+    Pet loaded;
+    if (!(file >> std::quoted(loaded.species)
+               >> std::quoted(loaded.name)
+               >> loaded.nourishment
+               >> loaded.fun
+               >> loaded.energy
+               >> loaded.cleanliness
+               >> loaded.sleeping)) {
+        return false;
+    }
+
+    loaded.nourishment = std::clamp(loaded.nourishment, 0.0f, 100.0f);
+    loaded.fun = std::clamp(loaded.fun, 0.0f, 100.0f);
+    loaded.energy = std::clamp(loaded.energy, 0.0f, 100.0f);
+    loaded.cleanliness = std::clamp(loaded.cleanliness, 0.0f, 100.0f);
+
+    pet = loaded;
+    return true;
 }
