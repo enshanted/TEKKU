@@ -1,0 +1,896 @@
+#include <SFML/Audio.hpp>
+#include <SFML/Graphics.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <iostream>
+#include <optional>
+#include <string>
+
+#include "Pet.h"
+
+int main() {
+    sf::RenderWindow window(sf::VideoMode({1280, 720}), "Tekku");
+    window.setFramerateLimit(60);
+
+    auto loadTexture = [](sf::Texture& texture, const std::string& path) {
+        if (!texture.loadFromFile(path)) {
+            std::cerr << "Could not load: " << path << '\n';
+            return false;
+        }
+        return true;
+    };
+
+    sf::Texture backgroundTexture;
+    sf::Texture catIdleTexture, dogIdleTexture;
+    sf::Texture catSleepTexture, dogSleepTexture;
+    sf::Texture catPlayTexture, dogPlayTexture;
+    sf::Texture catBathTexture, dogBathTexture;
+    sf::Texture catBurgerTexture, catSinigangTexture, catDubaiTexture;
+    sf::Texture dogBurgerTexture, dogSinigangTexture, dogDubaiTexture;
+    sf::Texture burgerButtonTexture, sinigangButtonTexture, dubaiButtonTexture;
+    sf::Texture sleepButtonTexture, bathButtonTexture, tickleButtonTexture;
+
+    if (!loadTexture(backgroundTexture, "../assets/tekku_mockup.png") ||
+        !loadTexture(catIdleTexture, "../assets/pets/cat/cat_idle.png") ||
+        !loadTexture(dogIdleTexture, "../assets/pets/dog/dog_idle.png") ||
+        !loadTexture(catSleepTexture, "../assets/pets/cat/cat_sleep.png") ||
+        !loadTexture(dogSleepTexture, "../assets/pets/dog/dog_sleep.png") ||
+        !loadTexture(catPlayTexture, "../assets/pets/cat/cat_play.png") ||
+        !loadTexture(dogPlayTexture, "../assets/pets/dog/dog_play.png") ||
+        !loadTexture(catBathTexture, "../assets/pets/cat/cat_bath.png") ||
+        !loadTexture(dogBathTexture, "../assets/pets/dog/dog_bath.png") ||
+        !loadTexture(catBurgerTexture, "../assets/pets/cat/cat_burger.png") ||
+        !loadTexture(catSinigangTexture, "../assets/pets/cat/cat_sinigang.png") ||
+        !loadTexture(catDubaiTexture, "../assets/pets/cat/cat_dubai.png") ||
+        !loadTexture(dogBurgerTexture, "../assets/pets/dog/dog_burger.png") ||
+        !loadTexture(dogSinigangTexture, "../assets/pets/dog/dog_sinigang.png") ||
+        !loadTexture(dogDubaiTexture, "../assets/pets/dog/dog_dubai.png") ||
+        !loadTexture(burgerButtonTexture, "../assets/buttons/burger.png") ||
+        !loadTexture(sinigangButtonTexture, "../assets/buttons/sinigang.png") ||
+        !loadTexture(dubaiButtonTexture, "../assets/buttons/dubai_chewy.png") ||
+        !loadTexture(sleepButtonTexture, "../assets/buttons/sleep.png") ||
+        !loadTexture(bathButtonTexture, "../assets/buttons/bath.png") ||
+        !loadTexture(tickleButtonTexture, "../assets/buttons/tickle.png")) {
+        return 1;
+    }
+
+    sf::Font statusFont;
+    if (!statusFont.openFromFile("../assets/fonts/PIXEARG_.TTF")) {
+        std::cerr << "Could not load font: ../assets/fonts/PIXEARG_.TTF\n";
+        return 1;
+    }
+
+    sf::SoundBuffer eatBuffer, sleepBuffer, bathBuffer, tickleBuffer;
+    if (!eatBuffer.loadFromFile("../assets/sounds/eat.wav") ||
+        !sleepBuffer.loadFromFile("../assets/sounds/sleep.wav") ||
+        !bathBuffer.loadFromFile("../assets/sounds/bath.wav") ||
+        !tickleBuffer.loadFromFile("../assets/sounds/tickle.wav")) {
+        std::cerr << "Could not load an action sound from assets/sounds.\n";
+        return 1;
+    }
+
+    sf::Sound eatSound(eatBuffer);
+    sf::Sound sleepSound(sleepBuffer);
+    sf::Sound bathSound(bathBuffer);
+    sf::Sound tickleSound(tickleBuffer);
+
+    eatSound.setVolume(50.0f);
+    sleepSound.setVolume(50.0f);
+    bathSound.setVolume(50.0f);
+    tickleSound.setVolume(50.0f);
+
+    sf::Music backgroundMusic;
+    if (!backgroundMusic.openFromFile("../assets/sounds/background.wav")) {
+        std::cerr << "Could not load: ../assets/sounds/background.wav\n";
+        return 1;
+    }
+    backgroundMusic.setLooping(true);
+    backgroundMusic.setVolume(30.0f);
+    backgroundMusic.play();
+
+    enum class ActionSound { None, Eat, Sleep, Bath, Tickle };
+    ActionSound activeActionSound = ActionSound::None;
+
+    auto stopActionSound = [&]() {
+        eatSound.stop();
+        sleepSound.stop();
+        bathSound.stop();
+        tickleSound.stop();
+        activeActionSound = ActionSound::None;
+    };
+
+    auto startLoopingSound = [&](sf::Sound& sound, ActionSound type) {
+        stopActionSound();
+        sound.setLooping(true);
+        sound.play();
+        activeActionSound = type;
+    };
+
+    sf::Sprite background(backgroundTexture);
+    background.setScale({
+        1280.0f / static_cast<float>(backgroundTexture.getSize().x),
+        720.0f / static_cast<float>(backgroundTexture.getSize().y)
+    });
+
+    sf::Sprite catIdle(catIdleTexture), dogIdle(dogIdleTexture);
+    sf::Sprite catSleep(catSleepTexture), dogSleep(dogSleepTexture);
+    sf::Sprite catPlay(catPlayTexture), dogPlay(dogPlayTexture);
+    sf::Sprite catBath(catBathTexture), dogBath(dogBathTexture);
+    sf::Sprite catBurger(catBurgerTexture), catSinigang(catSinigangTexture);
+    sf::Sprite catDubai(catDubaiTexture), dogBurger(dogBurgerTexture);
+    sf::Sprite dogSinigang(dogSinigangTexture), dogDubai(dogDubaiTexture);
+
+    sf::Sprite burgerButton(burgerButtonTexture);
+    sf::Sprite sinigangButton(sinigangButtonTexture);
+    sf::Sprite dubaiButton(dubaiButtonTexture);
+    sf::Sprite sleepButton(sleepButtonTexture);
+    sf::Sprite bathButton(bathButtonTexture);
+    sf::Sprite tickleButton(tickleButtonTexture);
+
+    std::array<sf::Sprite*, 6> actionButtons{{
+        &burgerButton, &sinigangButton, &dubaiButton,
+        &sleepButton, &bathButton, &tickleButton
+    }};
+
+    const std::array<sf::Vector2f, 6> buttonPositions{{
+        {106.0f, 540.0f}, {288.0f, 540.0f}, {470.0f, 540.0f},
+        {652.0f, 540.0f}, {834.0f, 540.0f}, {1016.0f, 540.0f}
+    }};
+
+    constexpr sf::Vector2f buttonDisplaySize(174.0f, 147.0f);
+    std::array<sf::Vector2f, 6> buttonBaseScales{};
+
+    for (std::size_t i = 0; i < actionButtons.size(); ++i) {
+        const sf::FloatRect bounds = actionButtons[i]->getLocalBounds();
+        const sf::Vector2f scale{
+            buttonDisplaySize.x / bounds.size.x,
+            buttonDisplaySize.y / bounds.size.y
+        };
+
+        actionButtons[i]->setOrigin({
+            bounds.position.x + bounds.size.x / 2.0f,
+            bounds.position.y + bounds.size.y / 2.0f
+        });
+        actionButtons[i]->setPosition({
+            buttonPositions[i].x + buttonDisplaySize.x / 2.0f,
+            buttonPositions[i].y + buttonDisplaySize.y / 2.0f
+        });
+        actionButtons[i]->setScale(scale);
+        buttonBaseScales[i] = scale;
+    }
+
+    constexpr int frameWidth = 640;
+    constexpr int frameHeight = 640;
+    constexpr float secondsPerFrame = 0.12f;
+
+    const int catIdleFrameCount = std::max(
+        1, static_cast<int>(catIdleTexture.getSize().x) / frameWidth
+    );
+    const int dogIdleFrameCount = std::max(
+        1, static_cast<int>(dogIdleTexture.getSize().x) / frameWidth
+    );
+    const int catSleepFrameCount = std::max(
+        1, static_cast<int>(catSleepTexture.getSize().x) / frameWidth
+    );
+    const int dogSleepFrameCount = std::max(
+        1, static_cast<int>(dogSleepTexture.getSize().x) / frameWidth
+    );
+    const int catPlayFrameCount = std::max(
+        1, static_cast<int>(catPlayTexture.getSize().x) / frameWidth
+    );
+    const int dogPlayFrameCount = std::max(
+        1, static_cast<int>(dogPlayTexture.getSize().x) / frameWidth
+    );
+    const int catBathFrameCount = std::max(
+        1, static_cast<int>(catBathTexture.getSize().x) / frameWidth
+    );
+    const int dogBathFrameCount = std::max(
+        1, static_cast<int>(dogBathTexture.getSize().x) / frameWidth
+    );
+
+    const std::array<int, 6> foodFrameCounts{{
+        std::max(1, static_cast<int>(catBurgerTexture.getSize().x) / frameWidth),
+        std::max(1, static_cast<int>(catSinigangTexture.getSize().x) / frameWidth),
+        std::max(1, static_cast<int>(catDubaiTexture.getSize().x) / frameWidth),
+        std::max(1, static_cast<int>(dogBurgerTexture.getSize().x) / frameWidth),
+        std::max(1, static_cast<int>(dogSinigangTexture.getSize().x) / frameWidth),
+        std::max(1, static_cast<int>(dogDubaiTexture.getSize().x) / frameWidth)
+    }};
+
+    std::array<sf::Sprite*, 6> foodSprites{{
+        &catBurger, &catSinigang, &catDubai,
+        &dogBurger, &dogSinigang, &dogDubai
+    }};
+
+    const sf::Vector2f petCenter(480.0f, 310.0f);
+
+    for (sf::Sprite* sprite : {
+             &catIdle, &dogIdle, &catSleep, &dogSleep,
+             &catPlay, &dogPlay, &catBath, &dogBath
+         }) {
+        sprite->setTextureRect(
+            sf::IntRect({0, 0}, {frameWidth, frameHeight})
+        );
+        sprite->setOrigin({frameWidth / 2.0f, frameHeight / 2.0f});
+        sprite->setPosition(petCenter);
+        sprite->setScale({0.35f, 0.35f});
+    }
+
+    for (sf::Sprite* sprite : foodSprites) {
+        sprite->setTextureRect(
+            sf::IntRect({0, 0}, {frameWidth, frameHeight})
+        );
+        sprite->setOrigin({frameWidth / 2.0f, frameHeight / 2.0f});
+        sprite->setPosition(petCenter);
+        sprite->setScale({0.35f, 0.35f});
+    }
+
+    const std::array<sf::Vector2f, 4> barPositions{{
+        {870.0f, 193.0f}, {870.0f, 265.0f},
+        {870.0f, 337.0f}, {870.0f, 409.0f}
+    }};
+
+    const std::array<sf::Color, 4> barColors{{
+        sf::Color(245, 95, 155), sf::Color(255, 190, 55),
+        sf::Color(225, 45, 190), sf::Color(30, 175, 235)
+    }};
+
+    std::array<sf::RectangleShape, 4> barTracks;
+    std::array<sf::RectangleShape, 4> barFills;
+
+    sf::Text nourishmentLabel(statusFont);
+    sf::Text energyLabel(statusFont);
+    sf::Text funLabel(statusFont);
+    sf::Text cleanlinessLabel(statusFont);
+
+    std::array<sf::Text*, 4> barLabels{{
+        &nourishmentLabel, &energyLabel, &funLabel, &cleanlinessLabel
+    }};
+
+    for (std::size_t i = 0; i < barTracks.size(); ++i) {
+        barTracks[i].setSize({240.0f, 22.0f});
+        barTracks[i].setPosition(barPositions[i]);
+        barTracks[i].setFillColor(sf::Color(205, 195, 255));
+        barTracks[i].setOutlineColor(sf::Color(42, 22, 125));
+        barTracks[i].setOutlineThickness(3.0f);
+
+        barFills[i].setSize({0.0f, 14.0f});
+        barFills[i].setPosition({
+            barPositions[i].x + 4.0f,
+            barPositions[i].y + 4.0f
+        });
+        barFills[i].setFillColor(barColors[i]);
+
+        barLabels[i]->setCharacterSize(16);
+        barLabels[i]->setFillColor(sf::Color(42, 22, 125));
+        barLabels[i]->setOutlineColor(sf::Color::White);
+        barLabels[i]->setOutlineThickness(1.0f);
+    }
+
+    constexpr float barFillMaxWidth = 232.0f;
+    constexpr float barFillHeight = 14.0f;
+
+    sf::CircleShape helpButton(19.0f);
+    helpButton.setOrigin({19.0f, 19.0f});
+    helpButton.setPosition({122.0f, 132.0f});
+    helpButton.setFillColor(sf::Color(205, 215, 225));
+    helpButton.setOutlineColor(sf::Color(42, 22, 125));
+    helpButton.setOutlineThickness(1.0f);
+
+    sf::Text helpQuestionMark(statusFont);
+    helpQuestionMark.setString("?");
+    helpQuestionMark.setCharacterSize(23);
+    helpQuestionMark.setFillColor(sf::Color(42, 22, 125));
+
+    const sf::FloatRect questionBounds = helpQuestionMark.getLocalBounds();
+    helpQuestionMark.setOrigin({
+        questionBounds.position.x + questionBounds.size.x / 2.0f,
+        questionBounds.position.y + questionBounds.size.y / 2.0f
+    });
+    helpQuestionMark.setPosition({122.0f, 132.0f});
+
+    sf::RectangleShape guideDimmer({1280.0f, 720.0f});
+    guideDimmer.setFillColor(sf::Color(20, 10, 50, 150));
+
+    sf::RectangleShape guidePanel({800.0f, 500.0f});
+    guidePanel.setPosition({240.0f, 100.0f});
+    guidePanel.setFillColor(sf::Color(255, 235, 250));
+    guidePanel.setOutlineColor(sf::Color(42, 22, 125));
+    guidePanel.setOutlineThickness(5.0f);
+
+    sf::Text guideTitle(statusFont);
+    guideTitle.setString("TEKKU USER GUIDE");
+    guideTitle.setCharacterSize(30);
+    guideTitle.setFillColor(sf::Color(42, 22, 125));
+    guideTitle.setPosition({285.0f, 125.0f});
+
+    sf::Text guideText(statusFont);
+    guideText.setString(
+        "NOURISHMENT\n"
+        "Click Burger / Press B: +30% nourishment\n"
+        "Click Sinigang / Press S: +70% nourishment\n"
+        "Click Dubai Chewy / Press D: +10% nourishment,\n"
+        "    +50% fun, -5% cleanliness\n\n"
+        "ENERGY\n"
+        "Click Sleep / Press Z: Restores 1% energy per second\n\n"
+        "FUN\n"
+        "Click Tickle / Press T: Adds 20% fun and reduces\n"
+        "    energy and cleanliness by 5%\n\n"
+        "CLEANLINESS\n"
+        "Click Bath / Press W: Sets cleanliness to 100%"
+    );
+    guideText.setCharacterSize(17);
+    guideText.setFillColor(sf::Color(42, 22, 125));
+    guideText.setPosition({285.0f, 180.0f});
+
+    sf::RectangleShape guideCloseButton({42.0f, 38.0f});
+    guideCloseButton.setPosition({970.0f, 118.0f});
+    guideCloseButton.setFillColor(sf::Color(255, 190, 220));
+    guideCloseButton.setOutlineColor(sf::Color(42, 22, 125));
+    guideCloseButton.setOutlineThickness(2.0f);
+
+    sf::Text guideCloseText(statusFont);
+    guideCloseText.setString("X");
+    guideCloseText.setCharacterSize(20);
+    guideCloseText.setFillColor(sf::Color(42, 22, 125));
+
+    const sf::FloatRect closeTextBounds = guideCloseText.getLocalBounds();
+    guideCloseText.setOrigin({
+        closeTextBounds.position.x + closeTextBounds.size.x / 2.0f,
+        closeTextBounds.position.y + closeTextBounds.size.y / 2.0f
+    });
+    guideCloseText.setPosition({991.0f, 137.0f});
+
+    bool guideOpen = false;
+
+    sf::RectangleShape notificationBackground({600.0f, 44.0f});
+    notificationBackground.setPosition({340.0f, 484.0f});
+    notificationBackground.setFillColor(sf::Color(255, 235, 250, 230));
+    notificationBackground.setOutlineColor(sf::Color(42, 22, 125));
+    notificationBackground.setOutlineThickness(2.0f);
+
+    sf::Text notificationText(statusFont);
+    notificationText.setCharacterSize(20);
+    notificationText.setFillColor(sf::Color(42, 22, 125));
+    notificationText.setOutlineColor(sf::Color::White);
+    notificationText.setOutlineThickness(1.0f);
+
+    bool notificationVisible = false;
+    float notificationElapsed = 0.0f;
+
+    auto showNotification = [&](const std::string& message) {
+        notificationText.setString(message);
+        const sf::FloatRect bounds = notificationText.getLocalBounds();
+        notificationText.setOrigin({
+            bounds.position.x + bounds.size.x / 2.0f,
+            bounds.position.y + bounds.size.y / 2.0f
+        });
+        notificationText.setPosition({640.0f, 506.0f});
+        notificationElapsed = 0.0f;
+        notificationVisible = true;
+    };
+
+    Pet pet;
+    initializePet(pet, "Dog", "Tekku");
+
+    sf::Clock deltaClock;
+
+    int idleFrame = 0;
+    float idleFrameElapsed = 0.0f;
+    int sleepFrame = 0;
+    float sleepFrameElapsed = 0.0f;
+    bool sleepAnimationPlaying = false;
+    bool playingAnimation = false;
+    int playFrame = 0;
+    float playFrameElapsed = 0.0f;
+    bool bathingAnimation = false;
+    int bathFrame = 0;
+    float bathFrameElapsed = 0.0f;
+    bool foodAnimationPlaying = false;
+    int foodAnimationSpriteIndex = 0;
+    int foodFrame = 0;
+    float foodFrameElapsed = 0.0f;
+
+    std::array<float, 6> buttonPopElapsed{};
+    std::array<bool, 6> buttonPopActive{};
+
+    const std::array<std::string, 4> warningMessages{{
+        "I am hungry!", "I am tired!", "I am bored!", "I am dirty!"
+    }};
+    std::array<float, 4> warningTimers{};
+
+    auto activateButton = [&](std::size_t index) {
+        stopActionSound();
+        buttonPopElapsed[index] = 0.0f;
+        buttonPopActive[index] = true;
+
+        if (!pet.sleeping) {
+            sleepAnimationPlaying = false;
+            foodAnimationPlaying = false;
+            bathingAnimation = false;
+            playingAnimation = false;
+        }
+
+        if (index < 3) {
+            const float nourishmentBefore = pet.nourishment;
+            showNotification(feed(pet, static_cast<int>(index) + 1));
+
+            if (pet.nourishment > nourishmentBefore) {
+                const int speciesOffset = (pet.species == "Cat") ? 0 : 3;
+                foodAnimationSpriteIndex =
+                    speciesOffset + static_cast<int>(index);
+
+                foodAnimationPlaying = true;
+                sleepAnimationPlaying = false;
+                bathingAnimation = false;
+                playingAnimation = false;
+                foodFrame = 0;
+                foodFrameElapsed = 0.0f;
+
+                startLoopingSound(eatSound, ActionSound::Eat);
+            }
+            return;
+        }
+
+        if (index == 3) {
+            const bool wasSleeping = pet.sleeping;
+            toggleSleep(pet);
+
+            if (pet.sleeping) {
+                showNotification(pet.name + " is sleeping.");
+                sleepAnimationPlaying = true;
+                foodAnimationPlaying = false;
+                bathingAnimation = false;
+                playingAnimation = false;
+                sleepFrame = 0;
+                sleepFrameElapsed = 0.0f;
+                startLoopingSound(sleepSound, ActionSound::Sleep);
+            } else if (wasSleeping) {
+                sleepAnimationPlaying = false;
+                showNotification(pet.name + " woke up.");
+            } else if (pet.energy >= 100.0f) {
+                sleepAnimationPlaying = false;
+                showNotification(pet.name + " is fully rested.");
+            }
+            return;
+        }
+
+        if (index == 4) {
+            if (pet.sleeping) {
+                showNotification(
+                    pet.name + " is sleeping. Wake them before a bath."
+                );
+            } else if (pet.cleanliness >= 100.0f) {
+                showNotification(pet.name + " is already clean!");
+            } else {
+                shower(pet);
+                showNotification(pet.name + " took a bath!");
+                bathingAnimation = true;
+                sleepAnimationPlaying = false;
+                foodAnimationPlaying = false;
+                playingAnimation = false;
+                bathFrame = 0;
+                bathFrameElapsed = 0.0f;
+                startLoopingSound(bathSound, ActionSound::Bath);
+            }
+            return;
+        }
+
+        if (index == 5) {
+            if (pet.sleeping) {
+                showNotification(
+                    pet.name + " is sleeping. Wake them before playing."
+                );
+            } else {
+                play(pet);
+                showNotification(pet.name + " is playing!");
+                playingAnimation = true;
+                sleepAnimationPlaying = false;
+                foodAnimationPlaying = false;
+                bathingAnimation = false;
+                playFrame = 0;
+                playFrameElapsed = 0.0f;
+                startLoopingSound(tickleSound, ActionSound::Tickle);
+            }
+        }
+    };
+
+    while (window.isOpen()) {
+        const float elapsedSeconds = deltaClock.restart().asSeconds();
+
+        while (const std::optional event = window.pollEvent()) {
+            if (event->is<sf::Event::Closed>()) {
+                window.close();
+            }
+
+            if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
+                if (guideOpen) {
+                    if (key->code == sf::Keyboard::Key::Escape) {
+                        guideOpen = false;
+                        stopActionSound();
+                    }
+                    continue;
+                }
+
+                if (key->code == sf::Keyboard::Key::B) {
+                    activateButton(0);
+                } else if (key->code == sf::Keyboard::Key::S) {
+                    activateButton(1);
+                } else if (key->code == sf::Keyboard::Key::D) {
+                    activateButton(2);
+                } else if (key->code == sf::Keyboard::Key::Z) {
+                    activateButton(3);
+                } else if (key->code == sf::Keyboard::Key::W) {
+                    activateButton(4);
+                } else if (key->code == sf::Keyboard::Key::T) {
+                    activateButton(5);
+                }
+            }
+
+            if (const auto* mouse =
+                    event->getIf<sf::Event::MouseButtonPressed>()) {
+                if (mouse->button != sf::Mouse::Button::Left) {
+                    continue;
+                }
+
+                const sf::Vector2f mousePosition =
+                    window.mapPixelToCoords(mouse->position);
+
+                if (guideOpen) {
+                    if (guideCloseButton.getGlobalBounds().contains(
+                            mousePosition)) {
+                        guideOpen = false;
+                        stopActionSound();
+                    }
+                    continue;
+                }
+
+                if (helpButton.getGlobalBounds().contains(mousePosition)) {
+                    guideOpen = true;
+                    stopActionSound();
+                    continue;
+                }
+
+                // Choose the sprite currently visible so clicking the pet
+                // returns it to idle. The hit area is the sprite frame bounds.
+                sf::Sprite* visiblePet = nullptr;
+
+                if (pet.species == "Cat") {
+                    if (pet.sleeping || sleepAnimationPlaying) {
+                        visiblePet = &catSleep;
+                    } else if (bathingAnimation) {
+                        visiblePet = &catBath;
+                    } else if (foodAnimationPlaying) {
+                        visiblePet = foodSprites[foodAnimationSpriteIndex];
+                    } else if (playingAnimation) {
+                        visiblePet = &catPlay;
+                    } else {
+                        visiblePet = &catIdle;
+                    }
+                } else {
+                    if (pet.sleeping || sleepAnimationPlaying) {
+                        visiblePet = &dogSleep;
+                    } else if (bathingAnimation) {
+                        visiblePet = &dogBath;
+                    } else if (foodAnimationPlaying) {
+                        visiblePet = foodSprites[foodAnimationSpriteIndex];
+                    } else if (playingAnimation) {
+                        visiblePet = &dogPlay;
+                    } else {
+                        visiblePet = &dogIdle;
+                    }
+                }
+
+                if (visiblePet != nullptr &&
+                    visiblePet->getGlobalBounds().contains(mousePosition)) {
+                    const bool wasSleeping =
+                        pet.sleeping || sleepAnimationPlaying;
+
+                    pet.sleeping = false;
+                    sleepAnimationPlaying = false;
+                    foodAnimationPlaying = false;
+                    bathingAnimation = false;
+                    playingAnimation = false;
+
+                    sleepFrame = 0;
+                    sleepFrameElapsed = 0.0f;
+                    foodFrame = 0;
+                    foodFrameElapsed = 0.0f;
+                    bathFrame = 0;
+                    bathFrameElapsed = 0.0f;
+                    playFrame = 0;
+                    playFrameElapsed = 0.0f;
+
+                    idleFrame = 0;
+                    idleFrameElapsed = 0.0f;
+
+                    stopActionSound();
+
+                    if (wasSleeping) {
+                        showNotification("You woke " + pet.name + " up!");
+                    }
+
+                    continue;
+                }
+
+                for (std::size_t i = 0; i < actionButtons.size(); ++i) {
+                    if (actionButtons[i]->getGlobalBounds().contains(
+                            mousePosition)) {
+                        activateButton(i);
+                        break;
+                    }
+                }
+            }
+        }
+
+        const bool wasSleepingBeforeUpdate = pet.sleeping;
+        updatePet(pet, elapsedSeconds);
+        updateSleep(pet, elapsedSeconds);
+
+        if (wasSleepingBeforeUpdate && !pet.sleeping) {
+            showNotification(pet.name + " is fully rested!");
+        }
+
+        // Keep status bars updated from the backend values.
+        const std::array<float, 4> statValues{{
+            pet.nourishment, pet.energy, pet.fun, pet.cleanliness
+        }};
+
+        for (std::size_t i = 0; i < barFills.size(); ++i) {
+            const float value = std::clamp(statValues[i], 0.0f, 100.0f);
+
+            barFills[i].setSize({
+                barFillMaxWidth * (value / 100.0f),
+                barFillHeight
+            });
+
+            barLabels[i]->setString(
+                std::to_string(static_cast<int>(std::lround(value))) + "%"
+            );
+
+            const sf::FloatRect textBounds = barLabels[i]->getLocalBounds();
+            barLabels[i]->setOrigin({
+                textBounds.position.x + textBounds.size.x,
+                textBounds.position.y + textBounds.size.y / 2.0f
+            });
+            barLabels[i]->setPosition({
+                barPositions[i].x + 232.0f,
+                barPositions[i].y + 11.0f
+            });
+
+            if (value <= 0.0f) {
+                warningTimers[i] += elapsedSeconds;
+                if (warningTimers[i] >= 60.0f) {
+                    showNotification(
+                        pet.name + ": " + warningMessages[i]
+                    );
+                    warningTimers[i] -= 60.0f;
+                }
+            } else {
+                warningTimers[i] = 0.0f;
+            }
+        }
+
+        // Loop the active animations until another action is selected.
+        if (sleepAnimationPlaying) {
+            sleepFrameElapsed += elapsedSeconds;
+            const int count = (pet.species == "Cat")
+                ? catSleepFrameCount
+                : dogSleepFrameCount;
+
+            while (sleepFrameElapsed >= secondsPerFrame) {
+                sleepFrame = (sleepFrame + 1) % count;
+                sleepFrameElapsed -= secondsPerFrame;
+            }
+        } else if (bathingAnimation) {
+            bathFrameElapsed += elapsedSeconds;
+            const int count = (pet.species == "Cat")
+                ? catBathFrameCount
+                : dogBathFrameCount;
+
+            while (bathFrameElapsed >= secondsPerFrame) {
+                bathFrame = (bathFrame + 1) % count;
+                bathFrameElapsed -= secondsPerFrame;
+            }
+        } else if (foodAnimationPlaying) {
+            foodFrameElapsed += elapsedSeconds;
+            const int count = foodFrameCounts[foodAnimationSpriteIndex];
+
+            while (foodFrameElapsed >= secondsPerFrame) {
+                foodFrame = (foodFrame + 1) % count;
+                foodFrameElapsed -= secondsPerFrame;
+            }
+        } else if (playingAnimation) {
+            playFrameElapsed += elapsedSeconds;
+            const int count = (pet.species == "Cat")
+                ? catPlayFrameCount
+                : dogPlayFrameCount;
+
+            while (playFrameElapsed >= secondsPerFrame) {
+                playFrame = (playFrame + 1) % count;
+                playFrameElapsed -= secondsPerFrame;
+            }
+        } else {
+            idleFrameElapsed += elapsedSeconds;
+            const int count = (pet.species == "Cat")
+                ? catIdleFrameCount
+                : dogIdleFrameCount;
+
+            while (idleFrameElapsed >= secondsPerFrame) {
+                idleFrame = (idleFrame + 1) % count;
+                idleFrameElapsed -= secondsPerFrame;
+            }
+        }
+
+        catIdle.setTextureRect(sf::IntRect(
+            {(idleFrame % catIdleFrameCount) * frameWidth, 0},
+            {frameWidth, frameHeight}
+        ));
+        dogIdle.setTextureRect(sf::IntRect(
+            {(idleFrame % dogIdleFrameCount) * frameWidth, 0},
+            {frameWidth, frameHeight}
+        ));
+        catSleep.setTextureRect(sf::IntRect(
+            {(sleepFrame % catSleepFrameCount) * frameWidth, 0},
+            {frameWidth, frameHeight}
+        ));
+        dogSleep.setTextureRect(sf::IntRect(
+            {(sleepFrame % dogSleepFrameCount) * frameWidth, 0},
+            {frameWidth, frameHeight}
+        ));
+        catPlay.setTextureRect(sf::IntRect(
+            {(playFrame % catPlayFrameCount) * frameWidth, 0},
+            {frameWidth, frameHeight}
+        ));
+        dogPlay.setTextureRect(sf::IntRect(
+            {(playFrame % dogPlayFrameCount) * frameWidth, 0},
+            {frameWidth, frameHeight}
+        ));
+        catBath.setTextureRect(sf::IntRect(
+            {bathFrame * frameWidth, 0},
+            {frameWidth, frameHeight}
+        ));
+        dogBath.setTextureRect(sf::IntRect(
+            {bathFrame * frameWidth, 0},
+            {frameWidth, frameHeight}
+        ));
+
+        for (std::size_t i = 0; i < foodSprites.size(); ++i) {
+            const int frame =
+                (foodAnimationPlaying &&
+                 static_cast<int>(i) == foodAnimationSpriteIndex)
+                    ? foodFrame
+                    : 0;
+
+            foodSprites[i]->setTextureRect(sf::IntRect(
+                {frame * frameWidth, 0},
+                {frameWidth, frameHeight}
+            ));
+        }
+
+        constexpr float buttonPopDuration = 0.20f;
+
+        for (std::size_t i = 0; i < actionButtons.size(); ++i) {
+            if (buttonPopActive[i]) {
+                buttonPopElapsed[i] += elapsedSeconds;
+
+                if (buttonPopElapsed[i] >= buttonPopDuration) {
+                    buttonPopActive[i] = false;
+                    actionButtons[i]->setScale(buttonBaseScales[i]);
+                } else {
+                    const float progress =
+                        buttonPopElapsed[i] / buttonPopDuration;
+                    const float popScale =
+                        1.0f + 0.12f * std::sin(3.14159f * progress);
+
+                    actionButtons[i]->setScale({
+                        buttonBaseScales[i].x * popScale,
+                        buttonBaseScales[i].y * popScale
+                    });
+                }
+            }
+        }
+
+        if (notificationVisible) {
+            notificationElapsed += elapsedSeconds;
+            constexpr float notificationDuration = 3.0f;
+            constexpr float fadeStartTime = 2.2f;
+
+            if (notificationElapsed >= notificationDuration) {
+                notificationVisible = false;
+            } else {
+                float opacity = 1.0f;
+                if (notificationElapsed > fadeStartTime) {
+                    opacity =
+                        (notificationDuration - notificationElapsed) /
+                        (notificationDuration - fadeStartTime);
+                }
+
+                const auto textAlpha = static_cast<std::uint8_t>(
+                    255.0f * opacity
+                );
+                const auto backgroundAlpha = static_cast<std::uint8_t>(
+                    230.0f * opacity
+                );
+
+                notificationText.setFillColor(
+                    sf::Color(42, 22, 125, textAlpha)
+                );
+                notificationText.setOutlineColor(
+                    sf::Color(255, 255, 255, textAlpha)
+                );
+                notificationBackground.setFillColor(
+                    sf::Color(255, 235, 250, backgroundAlpha)
+                );
+                notificationBackground.setOutlineColor(
+                    sf::Color(42, 22, 125, textAlpha)
+                );
+            }
+        }
+
+        window.clear();
+        window.draw(background);
+
+        for (sf::Sprite* button : actionButtons) {
+            window.draw(*button);
+        }
+
+        for (std::size_t i = 0; i < barTracks.size(); ++i) {
+            window.draw(barTracks[i]);
+            window.draw(barFills[i]);
+            window.draw(*barLabels[i]);
+        }
+
+        if (pet.species == "Cat") {
+            if (pet.sleeping || sleepAnimationPlaying) {
+                window.draw(catSleep);
+            } else if (bathingAnimation) {
+                window.draw(catBath);
+            } else if (foodAnimationPlaying) {
+                window.draw(*foodSprites[foodAnimationSpriteIndex]);
+            } else if (playingAnimation) {
+                window.draw(catPlay);
+            } else {
+                window.draw(catIdle);
+            }
+        } else {
+            if (pet.sleeping || sleepAnimationPlaying) {
+                window.draw(dogSleep);
+            } else if (bathingAnimation) {
+                window.draw(dogBath);
+            } else if (foodAnimationPlaying) {
+                window.draw(*foodSprites[foodAnimationSpriteIndex]);
+            } else if (playingAnimation) {
+                window.draw(dogPlay);
+            } else {
+                window.draw(dogIdle);
+            }
+        }
+
+        window.draw(helpButton);
+        window.draw(helpQuestionMark);
+
+        if (notificationVisible) {
+            window.draw(notificationBackground);
+            window.draw(notificationText);
+        }
+
+        if (guideOpen) {
+            window.draw(guideDimmer);
+            window.draw(guidePanel);
+            window.draw(guideTitle);
+            window.draw(guideText);
+            window.draw(guideCloseButton);
+            window.draw(guideCloseText);
+        }
+
+        window.display();
+    }
+
+    stopActionSound();
+    backgroundMusic.stop();
+    return 0;
+}
